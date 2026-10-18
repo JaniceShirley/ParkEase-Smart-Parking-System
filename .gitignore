@@ -217,3 +217,7 @@ test_*.db
 Scripts/
 pyvenv.cfg
 CACHEDIR.TAG
+
+# MLflow Experiment Tracking Store & Artifacts
+mlruns/
+mlartifacts/
