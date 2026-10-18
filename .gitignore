@@ -205,3 +205,15 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ParkEase Project Specific Ignores
+.env
+.env.*
+!.env.example
+*.bak
+test_*.db
+
+# Root virtual environments (Windows and POSIX)
+Scripts/
+pyvenv.cfg
+CACHEDIR.TAG

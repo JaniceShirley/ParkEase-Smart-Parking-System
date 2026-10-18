@@ -1,49 +1,67 @@
+import os
+import logging
 import requests
 
+logger = logging.getLogger(__name__)
+
 class TrichyWeatherClassifier:
-    def __init__(self, api_key):
-        self.api_key = api_key
+    def __init__(self, api_key=None):
+        self.api_key = api_key or os.environ.get("OPENWEATHER_API_KEY", "")
         self.base_url = "https://api.openweathermap.org/data/2.5/weather"
         # Trichy's approximate coordinates (lat/lon)
         self.trichy_lat = 10.7905
         self.trichy_lon = 78.7047
 
     def classify_weather(self):
+        if not self.api_key:
+            logger.warning("No OpenWeatherMap API key configured. Falling back to 'average' weather.")
+            return "average"
+
         try:
             params = {
                 "lat": self.trichy_lat,
                 "lon": self.trichy_lon,
                 "appid": self.api_key,
-                "units": "metric"  # Get temp in °C
+                "units": "metric"  # Temperature in Celsius
             }
 
-            response = requests.get(self.base_url, params=params)
-            response.raise_for_status()  # Raise error for bad status codes
+            response = requests.get(self.base_url, params=params, timeout=5)
+            response.raise_for_status()
 
             weather_data = response.json()
             return self._evaluate_weather(weather_data)
 
         except requests.exceptions.RequestException as e:
-            return f"Error fetching data: {str(e)}"
+            logger.warning("Weather API request failed (%s). Defaulting to 'average' weather.", type(e).__name__)
+            return "average"
+        except (KeyError, ValueError, TypeError) as e:
+            logger.warning("Failed to parse weather data (%s). Defaulting to 'average' weather.", type(e).__name__)
+            return "average"
 
     def _evaluate_weather(self, data):
-        temp = data["main"]["temp"]
-        humidity = data["main"]["humidity"]
-        rain = data.get("rain", {}).get("1h", 0)  # Rain in last hour (mm)
-        wind_speed = data["wind"]["speed"]  # Wind speed (m/s)
+        try:
+            main_data = data.get("main", {})
+            temp = float(main_data.get("temp", 25.0))
+            humidity = float(main_data.get("humidity", 50.0))
+            rain_data = data.get("rain", {})
+            rain = float(rain_data.get("1h", 0)) if isinstance(rain_data, dict) else 0.0
+            wind_data = data.get("wind", {})
+            wind_speed = float(wind_data.get("speed", 3.0)) if isinstance(wind_data, dict) else 0.0
 
-        # Classification Logic
-        if (temp > 36 or temp < 18) or (humidity > 85) or (rain > 15) or (wind_speed > 10):
-            return "bad"  # Extreme heat/cold, heavy rain, or strong winds
-        elif (20 <= temp <= 30) and (humidity < 70) and (rain < 2.5):
-            return "good"  # Pleasant conditions
-        else:
-            return "average"  # Moderate weather
+            # Classification Logic
+            if (temp > 36 or temp < 18) or (humidity > 85) or (rain > 15) or (wind_speed > 10):
+                return "bad"  # Extreme heat/cold, heavy rain, or strong winds
+            elif (20 <= temp <= 30) and (humidity < 70) and (rain < 2.5):
+                return "good"  # Pleasant conditions
+            else:
+                return "average"  # Moderate weather
+        except Exception as e:
+            logger.warning("Error evaluating weather metrics (%s). Defaulting to 'average'.", type(e).__name__)
+            return "average"
 
-# Example Usage
 if __name__ == "__main__":
-    API_KEY = "2cc77eedcd3b191bf76a5b2e2edce3c4"  # Replace with your key
-    classifier = TrichyWeatherClassifier(API_KEY)
-
+    logging.basicConfig(level=logging.INFO)
+    api_key = os.environ.get("OPENWEATHER_API_KEY", "")
+    classifier = TrichyWeatherClassifier(api_key)
     result = classifier.classify_weather()
-    print(f"Current weather in Trichy is: {result.upper()}")
+    print(f"Current weather classification in Trichy: {result.upper()}")
