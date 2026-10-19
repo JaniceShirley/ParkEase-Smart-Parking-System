@@ -50,35 +50,46 @@ DB = os.environ.get("DATABASE_PATH", "parking.db")
 MODEL_PATH = os.environ.get("MODEL_PATH", "price_prediction_model.pkl")
 ADMIN_SIGNUP_PASSCODE = os.environ.get("ADMIN_SIGNUP_PASSCODE", "ParkEase@123")
 
+def get_db_path():
+    """Resolve database path dynamically, prioritizing app.config for testing isolation."""
+    return app.config.get("DATABASE_PATH") or os.environ.get("DATABASE_PATH", DB)
+
 # Initialize weather classifier
 classifier = TrichyWeatherClassifier()
 
-# Model Caching: Load model once at startup
+# Model Caching: Load model once at startup, reload dynamically if target path changes
 LOADED_MODEL = None
+LOADED_MODEL_PATH = None
 
-def get_model():
-    global LOADED_MODEL
-    if LOADED_MODEL is None:
-        if os.path.exists(MODEL_PATH):
+def get_model(model_path=None):
+    """
+    Load and cache ML pricing model.
+    Prioritizes explicit argument, app.config, and environment variable, defaulting to price_prediction_model.pkl.
+    """
+    global LOADED_MODEL, LOADED_MODEL_PATH
+    target_path = model_path or app.config.get("MODEL_PATH") or os.environ.get("MODEL_PATH", "price_prediction_model.pkl")
+    if LOADED_MODEL is None or LOADED_MODEL_PATH != target_path:
+        if os.path.exists(target_path):
             try:
-                LOADED_MODEL = joblib.load(MODEL_PATH)
-                logger.info("ML price prediction model loaded successfully from %s", MODEL_PATH)
+                LOADED_MODEL = joblib.load(target_path)
+                LOADED_MODEL_PATH = target_path
+                logger.info("ML price prediction model loaded successfully from %s", target_path)
             except Exception as e:
-                logger.error("Failed to load model from %s: %s", MODEL_PATH, e)
+                logger.error("Failed to load model from %s: %s", target_path, e)
                 raise
         else:
-            logger.error("Model artifact not found at %s", MODEL_PATH)
-            raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
+            logger.error("Model artifact not found at %s", target_path)
+            raise FileNotFoundError(f"Model file not found at {target_path}")
     return LOADED_MODEL
 
-# Attempt startup model load
+# Attempt startup model load with default path
 try:
     get_model()
 except Exception as e:
     logger.warning("Model could not be loaded at process startup (%s). Price estimation will fail until resolved.", e)
 
 def init_db(db_path=None):
-    target_db = db_path or DB
+    target_db = db_path or get_db_path()
     conn = sqlite3.connect(target_db)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS parking_slots (slot_id INTEGER PRIMARY KEY, status TEXT NOT NULL)''')
@@ -143,7 +154,7 @@ def index():
             return redirect(url_for('index'))
 
         # Atomic slot reservation and user creation within a single transaction
-        conn = sqlite3.connect(DB, timeout=20.0)
+        conn = sqlite3.connect(get_db_path(), timeout=20.0)
         try:
             conn.execute("BEGIN IMMEDIATE")
             c = conn.cursor()
@@ -186,7 +197,7 @@ def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('index'))
 
-    conn = sqlite3.connect(DB)
+    conn = sqlite3.connect(get_db_path())
     c = conn.cursor()
     c.execute('SELECT name, phone, vehicle_number, vehicle_type, electric, time, slot_id FROM users WHERE id=?',
               (session['user_id'],))
@@ -206,7 +217,7 @@ def exit_parking():
     if 'user_id' not in session:
         return redirect(url_for('index'))
 
-    conn = sqlite3.connect(DB)
+    conn = sqlite3.connect(get_db_path())
     c = conn.cursor()
     c.execute('SELECT name, vehicle_number, vehicle_type, electric, time, slot_id FROM users WHERE id=?', (session['user_id'],))
     user_data = c.fetchone()
@@ -227,10 +238,15 @@ def exit_parking():
                                 "electric" if electric == "yes" else "non-electric",
                                 weather, congestion]],
                               columns=["Duration (min)", "Vehicle Type", "Electric", "Weather", "Congestion Level"])
-        model = get_model()
-        raw_price = float(model.predict(input_df)[0])
-        # Enforce business rule: non-negative parking fee boundary
-        price = max(0.0, round(raw_price, 2))
+        try:
+            model = get_model()
+            raw_price = float(model.predict(input_df)[0])
+            # Enforce business rule: non-negative parking fee boundary
+            price = max(0.0, round(raw_price, 2))
+        except Exception as e:
+            logger.error("Price estimation error during checkout: %s", e)
+            flash("Dynamic pricing service temporarily unavailable.", "error")
+            return redirect(url_for('dashboard'))
 
         # Store exit data in session for receipt and payment logging
         session['exit_data'] = {
@@ -262,7 +278,7 @@ def process_payment():
     if 'exit_data' not in session or 'user_id' not in session:
         return redirect(url_for('index'))
 
-    conn = sqlite3.connect(DB, timeout=20.0)
+    conn = sqlite3.connect(get_db_path(), timeout=20.0)
     try:
         conn.execute("BEGIN IMMEDIATE")
         c = conn.cursor()
@@ -305,7 +321,7 @@ def admin_signup():
             return "<h2>Invalid organization password!</h2>"
 
         hashed_password = generate_password_hash(password)
-        conn = sqlite3.connect(DB)
+        conn = sqlite3.connect(get_db_path())
         c = conn.cursor()
         try:
             c.execute('INSERT INTO admin (username, password, mobile) VALUES (?, ?, ?)', 
@@ -323,7 +339,7 @@ def admin_login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        conn = sqlite3.connect(DB)
+        conn = sqlite3.connect(get_db_path())
         c = conn.cursor()
         c.execute('SELECT id, password FROM admin WHERE username=?', (username,))
         admin = c.fetchone()
@@ -357,7 +373,7 @@ def admin_dashboard():
     if 'admin_id' not in session:
         return redirect(url_for('admin_login'))
     
-    conn = sqlite3.connect(DB)
+    conn = sqlite3.connect(get_db_path())
     c = conn.cursor()
     
     # Get all parking slots
@@ -395,7 +411,7 @@ def admin_logs():
     if 'admin_id' not in session:
         return redirect(url_for('admin_login'))
     
-    conn = sqlite3.connect(DB)
+    conn = sqlite3.connect(get_db_path())
     c = conn.cursor()
     c.execute('SELECT * FROM parking_logs ORDER BY exit_time DESC')
     logs = c.fetchall()

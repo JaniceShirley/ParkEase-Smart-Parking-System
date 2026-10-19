@@ -1,0 +1,60 @@
+name: ParkEase CI Pipeline
+
+'on':
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-integrity:
+    name: Test & Artifact Integrity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Pinned Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-test.txt
+
+      - name: Verify Dependency Consistency
+        run: pip check
+
+      - name: Verify Baseline Artifact Checksums (Pre-Test)
+        run: |
+          echo "3a445cee6a7722602410a4750b4c0e653604c32ceec1d835eff6081a580ffc80  parking.db" | shasum -a 256 --check
+          echo "71f9414e0580bdcac530e66a0aeb1addf193c608a3cef23b6b1d47966e5a9ccb  price_prediction_model.pkl" | shasum -a 256 --check
+          echo "aad2c2d641dfb6ceddf065a62b963f3a0170ca35242197df2eebd48ac3edacbc  models/xgboost_parking_v1.pkl" | shasum -a 256 --check
+          echo "4b4110df28576f05e493c264f0554eda21aeaba9ae8ca83d631903a09110feba  ml/data/parking_synthetic_demo.csv" | shasum -a 256 --check
+
+      - name: Execute Full Test Suite (Self-Contained)
+        env:
+          APP_ENV: testing
+          FLASK_SECRET_KEY: ci-test-secret-key-non-empty
+          MLFLOW_ALLOW_FILE_STORE: "true"
+          MLFLOW_DISABLE_AGENT_HINT: "1"
+        run: |
+          pytest tests/ -v
+
+      - name: Standalone Training Smoke Test (Disposable Paths)
+        env:
+          MLFLOW_ALLOW_FILE_STORE: "true"
+          MLFLOW_DISABLE_AGENT_HINT: "1"
+        run: |
+          python ml/train.py --force --model-output /tmp/ci_smoke_model.pkl --tracking-uri file:/tmp/ci_smoke_mlruns
+
+      - name: Verify Baseline Artifact Checksums (Zero-Mutation Guarantee)
+        run: |
+          echo "3a445cee6a7722602410a4750b4c0e653604c32ceec1d835eff6081a580ffc80  parking.db" | shasum -a 256 --check
+          echo "71f9414e0580bdcac530e66a0aeb1addf193c608a3cef23b6b1d47966e5a9ccb  price_prediction_model.pkl" | shasum -a 256 --check
+          echo "aad2c2d641dfb6ceddf065a62b963f3a0170ca35242197df2eebd48ac3edacbc  models/xgboost_parking_v1.pkl" | shasum -a 256 --check
+          echo "4b4110df28576f05e493c264f0554eda21aeaba9ae8ca83d631903a09110feba  ml/data/parking_synthetic_demo.csv" | shasum -a 256 --check

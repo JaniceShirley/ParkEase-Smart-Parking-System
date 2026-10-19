@@ -26,6 +26,7 @@ from ml.generate_synthetic_data import (
 from ml.train import (
     load_and_validate_dataset,
     build_pipeline,
+    train_and_track,
     ALL_INPUT_FEATURES,
     TARGET_FEATURE,
     compute_file_sha256
@@ -154,14 +155,27 @@ def test_model_artifact_loading_and_inference():
     assert np.all(batch_preds > 0.0)
 
 
-def test_mlflow_logged_experiment():
-    """Verify that MLflow local file store contains recorded experiment, runs, parameters, and metrics."""
-    client = mlflow.tracking.MlflowClient(tracking_uri="file:./mlruns")
-    exp = client.get_experiment_by_name("ParkEase-Pricing-Engine")
-    assert exp is not None, "Experiment 'ParkEase-Pricing-Engine' was not created"
+def test_mlflow_logged_experiment(tmp_path):
+    """Verify that MLflow correctly records experiments, parameters, metrics, and tags in an isolated store."""
+    temp_tracking_uri = f"file:{tmp_path}/mlruns"
+    temp_model_path = str(tmp_path / "temp_candidate.pkl")
+
+    train_and_track(
+        data_path=DATA_PATH,
+        model_output=temp_model_path,
+        test_size=0.20,
+        seed=42,
+        force=True,
+        experiment_name="ParkEase-Pricing-Engine-Test",
+        tracking_uri=temp_tracking_uri
+    )
+
+    client = mlflow.tracking.MlflowClient(tracking_uri=temp_tracking_uri)
+    exp = client.get_experiment_by_name("ParkEase-Pricing-Engine-Test")
+    assert exp is not None, "Experiment 'ParkEase-Pricing-Engine-Test' was not created"
 
     runs = client.search_runs(experiment_ids=[exp.experiment_id])
-    assert len(runs) > 0, "No runs recorded in MLflow store"
+    assert len(runs) > 0, "No runs recorded in temporary MLflow store"
 
     latest_run = runs[0]
     assert latest_run.data.tags.get("dataset_type") == "synthetic_demonstration"
