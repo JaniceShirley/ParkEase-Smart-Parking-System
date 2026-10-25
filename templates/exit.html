@@ -10,6 +10,7 @@
     <div class="container">
         <div class="exit-confirmation">
             <h1>Thank You for Using ParkEase</h1>
+            {% include '_flash.html' %}
             <div class="receipt">
                 <div class="receipt-header">
                     <h2>Parking Receipt</h2>
@@ -43,6 +44,7 @@
             </div>
             
             <form method="POST" action="{{ url_for('process_payment') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-primary">Confirm Payment</button>
             </form>
         </div>

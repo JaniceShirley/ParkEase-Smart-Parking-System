@@ -27,7 +27,9 @@
 <body>
     <div class="container">
         <h1>Parking Details</h1>
-        
+
+        {% include '_flash.html' %}
+
         <!-- Prominent Slot Display -->
         <div class="slot-header">
             <div class="slot-label">Your Parking Slot</div>
@@ -62,6 +64,7 @@
         </div>
         
         <form method="POST" action="{{ url_for('exit_parking') }}" class="exit-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-danger">Exit Parking</button>
         </form>
     </div>

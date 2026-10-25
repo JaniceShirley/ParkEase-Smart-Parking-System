@@ -170,6 +170,47 @@ input:focus, select:focus {
     box-shadow: var(--hover-shadow);
 }
 
+.inline-form {
+    display: inline;
+}
+
+/* Flash Messages */
+.alert {
+    padding: var(--space-md);
+    border-radius: 8px;
+    margin-bottom: var(--space-lg);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+}
+
+.alert-error {
+    background-color: rgba(255, 23, 68, 0.1);
+    border: 1px solid var(--danger-color);
+    color: var(--danger-color);
+}
+
+.alert-success {
+    background-color: rgba(0, 200, 83, 0.1);
+    border: 1px solid var(--success-color);
+    color: #00701a;
+}
+
+.alert-info {
+    background-color: rgba(68, 138, 255, 0.1);
+    border: 1px solid var(--secondary-color);
+    color: var(--primary-color);
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
 /* Table Styles */
 table {
     width: 100%;

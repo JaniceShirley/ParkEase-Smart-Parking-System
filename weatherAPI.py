@@ -37,6 +37,10 @@ class TrichyWeatherClassifier:
         except (KeyError, ValueError, TypeError) as e:
             logger.warning("Failed to parse weather data (%s). Defaulting to 'average' weather.", type(e).__name__)
             return "average"
+        except Exception as e:
+            # Checkout must never fail because of the weather service.
+            logger.warning("Unexpected weather lookup failure (%s). Defaulting to 'average' weather.", type(e).__name__)
+            return "average"
 
     def _evaluate_weather(self, data):
         try:

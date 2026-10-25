@@ -12,9 +12,14 @@
             <h1>Parking System Logs</h1>
             <div>
                 <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
-                <a href="{{ url_for('admin_logout') }}" class="btn btn-danger">Logout</a>
+                <form method="POST" action="{{ url_for('admin_logout') }}" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">Logout</button>
+                </form>
             </div>
         </div>
+
+        {% include '_flash.html' %}
 
         <div class="search-container">
             <input type="text" id="searchInput" class="search-box" placeholder="Search by name, vehicle, etc...">
@@ -51,10 +56,10 @@
                         <td>{{ log[6] }}</td>
                         <td>{{ log[7] }}</td>
                         <td>{{ log[8] }}</td>
-                        <td>{{ "%.1f"|format(log[9]) if log[9] else '-' }}</td>
-                        <td>{{ "%.2f"|format(log[10]) if log[10] else '-' }}</td>
+                        <td>{{ "%.1f"|format(log[9]) if log[9] is not none else '-' }}</td>
+                        <td>{{ "%.2f"|format(log[10]) if log[10] is not none else '-' }}</td>
                         <td>{{ log[11] }}</td>
-                        <td>{{ "%.2f"|format(log[12]) if log[12] else '-' }}</td>
+                        <td>{{ "%.2f"|format(log[12]) if log[12] is not none else '-' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

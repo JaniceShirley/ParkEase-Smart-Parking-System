@@ -221,3 +221,10 @@ CACHEDIR.TAG
 # MLflow Experiment Tracking Store & Artifacts
 mlruns/
 mlartifacts/
+
+# Legacy runtime database (contains personal data). It was removed from version
+# control and must never be committed again; runtime data lives in instance/.
+/parking.db
+/parking.db-journal
+/parking.db-wal
+/parking.db-shm

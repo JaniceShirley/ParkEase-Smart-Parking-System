@@ -1,0 +1,8 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+        <div class="alert alert-{{ category if category in ('error', 'success', 'info') else 'info' }}" role="{{ 'alert' if category == 'error' else 'status' }}">
+            <span>{{ message }}</span>
+            <button type="button" class="close-btn" aria-label="Dismiss" onclick="this.parentElement.style.display='none'">×</button>
+        </div>
+    {% endfor %}
+{% endwith %}

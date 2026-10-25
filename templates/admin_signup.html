@@ -9,25 +9,35 @@
 <body>
     <div class="container">
         <h1>Admin Signup</h1>
+
+        {% include '_flash.html' %}
+
+        {% if signup_enabled %}
         <form method="POST" action="{{ url_for('admin_signup') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="username">Username:</label>
-                <input type="text" id="username" name="username" required>
+                <input type="text" id="username" name="username" minlength="3" maxlength="50" required>
             </div>
             <div class="form-group">
                 <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" minlength="10" autocomplete="new-password" required>
             </div>
             <div class="form-group">
                 <label for="mobile">Mobile Number:</label>
-                <input type="tel" id="mobile" name="mobile" required>
+                <input type="tel" id="mobile" name="mobile" maxlength="20" required>
             </div>
             <div class="form-group">
                 <label for="org_password">Organization Password:</label>
-                <input type="password" id="org_password" name="org_password" required>
+                <input type="password" id="org_password" name="org_password" autocomplete="off" required>
             </div>
             <button type="submit" class="btn btn-primary">Sign Up</button>
         </form>
+        {% else %}
+        <div class="alert alert-info" role="status">
+            <span>Administrator registration is disabled. Ask an existing administrator to create your account.</span>
+        </div>
+        {% endif %}
         
         <div class="links" style="margin-top: 1.5rem;">
             <a href="{{ url_for('admin_login') }}" class="btn btn-secondary">Already have an account? Login</a>
