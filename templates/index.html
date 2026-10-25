@@ -42,35 +42,37 @@
             <div class="admin-link-top">
                 <a href="{{ url_for('admin_login') }}" class="btn btn-secondary">Admin Login</a>
             </div>
-        </div>        
-        
-        <form method="POST" action="/">
+        </div>
+
+        {% include '_flash.html' %}
+
+        <form method="POST" action="{{ url_for('index') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="name">Full Name:</label>
-                <input type="text" id="name" name="name" required>
+                <input type="text" id="name" name="name" maxlength="100" value="{{ form.get('name', '') }}" required>
             </div>
             <div class="form-group">
                 <label for="phone">Phone Number:</label>
-                <input type="tel" id="phone" name="phone" required>
+                <input type="tel" id="phone" name="phone" maxlength="20" value="{{ form.get('phone', '') }}" required>
             </div>
             <div class="form-group">
                 <label for="vehicle_number">Vehicle Number:</label>
-                <input type="text" id="vehicle_number" name="vehicle_number" required>
+                <input type="text" id="vehicle_number" name="vehicle_number" maxlength="20" value="{{ form.get('vehicle_number', '') }}" required>
             </div>
             <div class="form-group">
                 <label for="vehicle_type">Vehicle Type:</label>
                 <select id="vehicle_type" name="vehicle_type" required>
-                    <option value="auto">Auto</option>
-                    <option value="car">Car</option>
-                    <option value="2-wheeler">2-Wheeler</option>
-                    <option value="suv/van">SUV/Van</option>
+                    {% for value, label in [('auto', 'Auto'), ('car', 'Car'), ('2-wheeler', '2-Wheeler'), ('suv/van', 'SUV/Van')] %}
+                    <option value="{{ value }}" {% if form.get('vehicle_type') == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="form-group">
-                <label>Electric Vehicle:</label>
-                <select name="electric" required>
-                    <option value="yes">Yes</option>
-                    <option value="no">No</option>
+                <label for="electric">Electric Vehicle:</label>
+                <select id="electric" name="electric" required>
+                    <option value="yes" {% if form.get('electric') == 'yes' %}selected{% endif %}>Yes</option>
+                    <option value="no" {% if form.get('electric') == 'no' %}selected{% endif %}>No</option>
                 </select>
             </div>
             <button type="submit" class="btn btn-primary">Book Parking Slot</button>

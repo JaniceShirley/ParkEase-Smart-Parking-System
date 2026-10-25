@@ -3,9 +3,10 @@ End-to-End Regression Test Suite for ParkEase Flask Integration (Checkpoint 2C).
 
 SAFETY GUARANTEES:
 1. Operates exclusively on an isolated temporary SQLite database created in a temp directory.
-2. The original parking.db is never opened for write operations and its checksum is verified.
+2. The legacy parking.db is not tracked; a local copy, if present, is never modified (tests/conftest.py).
 3. Tests both the legacy default model (price_prediction_model.pkl) and the candidate model (models/xgboost_parking_v1.pkl).
 4. Mocks external OpenWeatherMap network calls to guarantee hermetic test execution.
+5. Checkout quotes are read from the database, which is the source of truth for fees.
 """
 
 import os
@@ -13,30 +14,40 @@ import tempfile
 import sqlite3
 import hashlib
 import pytest
+import requests
 from unittest.mock import patch
 
 import numpy as np
+import app as app_module
 from app import app, init_db, get_model
 from ml.train import compute_file_sha256
 
-ORIGINAL_DB_PATH = "parking.db"
 LEGACY_MODEL_PATH = "price_prediction_model.pkl"
 CANDIDATE_MODEL_PATH = "models/xgboost_parking_v1.pkl"
 
-BASELINE_DB_SHA256 = "3a445cee6a7722602410a4750b4c0e653604c32ceec1d835eff6081a580ffc80"
 BASELINE_LEGACY_MODEL_SHA256 = "71f9414e0580bdcac530e66a0aeb1addf193c608a3cef23b6b1d47966e5a9ccb"
 BASELINE_CANDIDATE_MODEL_SHA256 = "aad2c2d641dfb6ceddf065a62b963f3a0170ca35242197df2eebd48ac3edacbc"
+TEST_SIGNUP_PASSCODE = "test-only-signup-passcode"
+
+
+def get_saved_quote(vehicle_number):
+    """Return the persisted checkout quote for an active driver."""
+    conn = sqlite3.connect(app.config["DATABASE_PATH"])
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT vehicle_number, exit_time, duration_min, price, weather, congestion "
+        "FROM users WHERE vehicle_number=?", (vehicle_number,)
+    ).fetchone()
+    conn.close()
+    return row
 
 
 @pytest.fixture(autouse=True)
 def verify_original_artifacts_unmodified():
-    """Verify that original parking.db and model artifacts are never modified before or after tests."""
-    assert os.path.exists(ORIGINAL_DB_PATH)
-    assert compute_file_sha256(ORIGINAL_DB_PATH) == BASELINE_DB_SHA256, "original parking.db was altered!"
+    """Verify that model artifacts are never modified before or after tests."""
     assert compute_file_sha256(LEGACY_MODEL_PATH) == BASELINE_LEGACY_MODEL_SHA256, "legacy model was altered!"
     assert compute_file_sha256(CANDIDATE_MODEL_PATH) == BASELINE_CANDIDATE_MODEL_SHA256, "candidate model was altered!"
     yield
-    assert compute_file_sha256(ORIGINAL_DB_PATH) == BASELINE_DB_SHA256, "original parking.db was altered during test!"
     assert compute_file_sha256(LEGACY_MODEL_PATH) == BASELINE_LEGACY_MODEL_SHA256, "legacy model was altered during test!"
     assert compute_file_sha256(CANDIDATE_MODEL_PATH) == BASELINE_CANDIDATE_MODEL_SHA256, "candidate model was altered during test!"
 
@@ -58,7 +69,9 @@ def test_client():
         "DATABASE_PATH": temp_db_path,
         "MODEL_PATH": CANDIDATE_MODEL_PATH,
         "WTF_CSRF_ENABLED": False,
-        "SECRET_KEY": "test-secret-key"
+        "SECRET_KEY": "test-secret-key",
+        "ADMIN_SIGNUP_PASSCODE": TEST_SIGNUP_PASSCODE,
+        "PARKING_CAPACITY": 100,
     })
 
     with app.test_client() as client:
@@ -119,9 +132,11 @@ def test_c_dashboard_rendering(test_client):
 
 
 @patch("weatherAPI.requests.get")
-def test_d_and_e_exit_candidate_model_pricing(mock_weather, test_client):
+def test_d_and_e_exit_candidate_model_pricing(mock_weather, test_client, monkeypatch):
     """Test D & E: Exit, duration calculation, and candidate-model prediction."""
-    mock_weather.side_effect = Exception("Network offline")  # Mock fallback to 'average'
+    # A key must be configured, otherwise the classifier never calls requests.get
+    monkeypatch.setattr(app_module.classifier, "api_key", "test-api-key")
+    mock_weather.side_effect = requests.exceptions.ConnectionError("Network offline")
     app.config["MODEL_PATH"] = CANDIDATE_MODEL_PATH
 
     # 1. Check in
@@ -138,13 +153,14 @@ def test_d_and_e_exit_candidate_model_pricing(mock_weather, test_client):
     assert response.status_code == 200
     assert b"Receipt" in response.data or b"Parking Fee" in response.data or b"Exit" in response.data
 
-    with test_client.session_transaction() as sess:
-        exit_data = sess.get("exit_data")
-        assert exit_data is not None
-        assert exit_data["vehicle_number"] == "TN-45-XG-0001"
-        assert exit_data["duration_min"] >= 0.0
-        assert exit_data["price"] >= 0.0
-        assert isinstance(exit_data["price"], float)
+    assert mock_weather.called, "weather API mock was never exercised"
+    quote = get_saved_quote("TN-45-XG-0001")
+    assert quote is not None
+    assert quote["exit_time"] is not None
+    assert quote["duration_min"] >= 0.0
+    assert quote["price"] >= 0.0
+    assert isinstance(quote["price"], float)
+    assert quote["weather"] == "average"
 
 
 def test_f_g_h_payment_processing_and_slot_release(test_client):
@@ -192,7 +208,7 @@ def test_i_admin_authentication_and_dashboard(test_client):
         "username": "testadmin",
         "password": "SecurePassword@123",
         "mobile": "9998881111",
-        "org_password": "ParkEase@123"
+        "org_password": TEST_SIGNUP_PASSCODE
     }, follow_redirects=True)
 
     # 2. Login admin
@@ -209,9 +225,10 @@ def test_i_admin_authentication_and_dashboard(test_client):
 
 
 @patch("weatherAPI.requests.get")
-def test_j_weather_api_fallback(mock_get, test_client):
+def test_j_weather_api_fallback(mock_get, test_client, monkeypatch):
     """Test J: Weather API network failure gracefully falls back to 'average' weather."""
-    mock_get.side_effect = Exception("Simulated connection timeout")
+    monkeypatch.setattr(app_module.classifier, "api_key", "test-api-key")
+    mock_get.side_effect = requests.exceptions.Timeout("Simulated connection timeout")
 
     test_client.post("/", data={
         "name": "Weather Driver",
@@ -223,11 +240,12 @@ def test_j_weather_api_fallback(mock_get, test_client):
 
     test_client.post("/exit", follow_redirects=False)
 
-    with test_client.session_transaction() as sess:
-        exit_data = sess.get("exit_data")
-        assert exit_data is not None
-        assert exit_data["weather"] == "average"
-        assert exit_data["price"] >= 0.0
+    assert mock_get.called, "weather API mock was never exercised"
+    assert mock_get.call_args.kwargs.get("timeout") == 5
+    quote = get_saved_quote("TN-45-WT-1111")
+    assert quote is not None
+    assert quote["weather"] == "average"
+    assert quote["price"] >= 0.0
 
 
 def test_k_missing_model_handling(test_client):
@@ -245,7 +263,9 @@ def test_k_missing_model_handling(test_client):
     response = test_client.post("/exit", follow_redirects=True)
     # Redirects back to dashboard with error flash rather than returning 500
     assert response.status_code == 200
-    assert b"temporarily unavailable" in response.data or b"Dashboard" in response.data
+    assert b"temporarily unavailable" in response.data
+    # No quote may be stored when pricing failed
+    assert get_saved_quote("TN-45-CR-0000")["exit_time"] is None
 
 
 def test_l_dual_model_compatibility(test_client):
@@ -269,11 +289,10 @@ def test_l_dual_model_compatibility(test_client):
         # Checkout driver
         test_client.post("/exit", follow_redirects=False)
 
-        with test_client.session_transaction() as sess:
-            exit_data = sess.get("exit_data")
-            assert exit_data is not None, f"Exit data missing for {model_target}"
-            assert exit_data["price"] >= 0.0, f"Invalid fee for {model_target}"
-            assert np.isfinite(exit_data["price"]), f"Non-finite fee for {model_target}"
+        quote = get_saved_quote("TN-45-TEST")
+        assert quote is not None and quote["exit_time"] is not None, f"Exit quote missing for {model_target}"
+        assert quote["price"] >= 0.0, f"Invalid fee for {model_target}"
+        assert np.isfinite(quote["price"]), f"Non-finite fee for {model_target}"
 
         # Clean up session
         test_client.post("/process_payment", follow_redirects=False)

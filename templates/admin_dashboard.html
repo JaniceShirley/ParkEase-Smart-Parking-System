@@ -12,17 +12,23 @@
             <h1>Parking Slots Overview</h1>
             <div>
                 <a href="{{ url_for('admin_logs') }}" class="btn btn-secondary">View Full Logs</a>
-                <a href="{{ url_for('admin_logout') }}" class="btn btn-danger">Logout</a>
+                <form method="POST" action="{{ url_for('admin_logout') }}" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">Logout</button>
+                </form>
             </div>
         </div>
+
+        {% include '_flash.html' %}
+
         <div class="stats">
             <div class="stat-card">
                 <h3>Total Occupied</h3>
-                <p>{{ occupied_count }} / 100</p>
+                <p>{{ occupied_count }} / {{ total_slots }}</p>
             </div>
             <div class="stat-card">
                 <h3>Total Free</h3>
-                <p>{{ free_count }} / 100</p>
+                <p>{{ free_count }} / {{ total_slots }}</p>
             </div>
             <div class="stat-card">
                 <h3>Occupancy Rate</h3>

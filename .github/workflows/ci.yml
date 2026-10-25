@@ -29,9 +29,16 @@ jobs:
       - name: Verify Dependency Consistency
         run: pip check
 
+      - name: Verify Legacy Database Is Not Tracked
+        run: |
+          # parking.db held personal data and was removed from version control.
+          if git ls-files --error-unmatch parking.db >/dev/null 2>&1; then
+            echo "::error::parking.db must not be committed"; exit 1
+          fi
+          test ! -e parking.db
+
       - name: Verify Baseline Artifact Checksums (Pre-Test)
         run: |
-          echo "3a445cee6a7722602410a4750b4c0e653604c32ceec1d835eff6081a580ffc80  parking.db" | shasum -a 256 --check
           echo "71f9414e0580bdcac530e66a0aeb1addf193c608a3cef23b6b1d47966e5a9ccb  price_prediction_model.pkl" | shasum -a 256 --check
           echo "aad2c2d641dfb6ceddf065a62b963f3a0170ca35242197df2eebd48ac3edacbc  models/xgboost_parking_v1.pkl" | shasum -a 256 --check
           echo "4b4110df28576f05e493c264f0554eda21aeaba9ae8ca83d631903a09110feba  ml/data/parking_synthetic_demo.csv" | shasum -a 256 --check
@@ -54,7 +61,8 @@ jobs:
 
       - name: Verify Baseline Artifact Checksums (Zero-Mutation Guarantee)
         run: |
-          echo "3a445cee6a7722602410a4750b4c0e653604c32ceec1d835eff6081a580ffc80  parking.db" | shasum -a 256 --check
+          # The test run and training check must not have created a legacy database.
+          test ! -e parking.db
           echo "71f9414e0580bdcac530e66a0aeb1addf193c608a3cef23b6b1d47966e5a9ccb  price_prediction_model.pkl" | shasum -a 256 --check
           echo "aad2c2d641dfb6ceddf065a62b963f3a0170ca35242197df2eebd48ac3edacbc  models/xgboost_parking_v1.pkl" | shasum -a 256 --check
           echo "4b4110df28576f05e493c264f0554eda21aeaba9ae8ca83d631903a09110feba  ml/data/parking_synthetic_demo.csv" | shasum -a 256 --check

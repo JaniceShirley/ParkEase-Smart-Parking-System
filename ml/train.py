@@ -261,9 +261,10 @@ def train_and_track(
         })
 
         # Log Scikit-learn Pipeline Model to MLflow Artifacts
+        # (MLflow 2.x API: `artifact_path`; the `name` keyword only exists in MLflow 3.x)
         mlflow.sklearn.log_model(
             sk_model=pipeline,
-            name="pipeline_model",
+            artifact_path="pipeline_model",
             serialization_format="cloudpickle"
         )
 

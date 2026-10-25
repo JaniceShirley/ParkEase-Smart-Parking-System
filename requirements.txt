@@ -1,7 +1,11 @@
 Flask==2.3.2
+Werkzeug==3.0.6  # Flask 2.3.x is incompatible with Werkzeug 3.1+ (removed werkzeug.__version__)
+Flask-WTF==1.3.0  # CSRF protection
+Flask-Limiter==4.1.1  # Login and signup rate limiting
 joblib==1.3.2
+numpy==1.26.4  # pandas 2.0.3 and the pickled models are built against NumPy 1.x
 pandas==2.0.3
-requests==2.31.0  # Required for weatherAPI
+requests==2.32.4  # Required for weatherAPI
 scikit-learn==1.6.1  # Matches serialization version of price_prediction_model.pkl
 xgboost==2.1.4  # Required for XGBRegressor model in pipeline
 python-dotenv>=1.0.0
