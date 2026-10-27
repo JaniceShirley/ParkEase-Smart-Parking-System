@@ -228,3 +228,29 @@ mlartifacts/
 /parking.db-journal
 /parking.db-wal
 /parking.db-shm
+
+# Any other local SQLite databases (may hold customer data); the app keeps its
+# runtime database in instance/, and tests create theirs in temporary folders.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Database backups and exports
+*.backup
+*.dump
+backups/
+*-backups/
+
+# Private keys, certificates and credential files
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+secrets.json
+credentials.json
+service-account*.json
