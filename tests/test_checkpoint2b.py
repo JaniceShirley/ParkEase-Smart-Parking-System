@@ -18,14 +18,10 @@ import mlflow
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from ml.generate_synthetic_data import (
-    validate_dataset,
-    ALLOWED_VEHICLE_TYPES,
-    ALLOWED_EV_VALUES,
-    ALLOWED_WEATHER_VALUES
+    validate_dataset
 )
 from ml.train import (
     load_and_validate_dataset,
-    build_pipeline,
     train_and_track,
     ALL_INPUT_FEATURES,
     TARGET_FEATURE,

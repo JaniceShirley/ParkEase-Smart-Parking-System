@@ -9,7 +9,6 @@ and MLflow artifact tracking, but do NOT establish real-world predictive parking
 """
 
 import os
-import sys
 
 # Configure MLflow local file store compatibility
 os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"

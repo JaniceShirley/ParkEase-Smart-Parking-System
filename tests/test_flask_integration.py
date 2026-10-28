@@ -12,14 +12,13 @@ SAFETY GUARANTEES:
 import os
 import tempfile
 import sqlite3
-import hashlib
 import pytest
 import requests
 from unittest.mock import patch
 
 import numpy as np
 import app as app_module
-from app import app, init_db, get_model
+from app import app, init_db
 from ml.train import compute_file_sha256
 
 LEGACY_MODEL_PATH = "price_prediction_model.pkl"
@@ -281,7 +280,7 @@ def test_l_dual_model_compatibility(test_client):
         test_client.post("/", data={
             "name": f"Driver {model_target}",
             "phone": "9876543210",
-            "vehicle_number": f"TN-45-TEST",
+            "vehicle_number": "TN-45-TEST",
             "vehicle_type": "car",
             "electric": "no"
         }, follow_redirects=False)
