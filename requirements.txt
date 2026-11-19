@@ -9,4 +9,4 @@ requests==2.32.4  # Required for weatherAPI
 scikit-learn==1.6.1  # Matches serialization version of price_prediction_model.pkl
 xgboost==2.1.4  # Required for XGBRegressor model in pipeline
 python-dotenv>=1.0.0
-gunicorn>=21.2.0
+gunicorn>=23.0.0
